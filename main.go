@@ -59,6 +59,7 @@ func Welcome(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 	}
 	userSession, exists := sessions[sessionToken]
+	fmt.Println(sessions)
 	if !exists {
 		c.AbortWithStatus(http.StatusUnauthorized)
 	}
@@ -72,7 +73,30 @@ func Welcome(c *gin.Context) {
 }
 
 func Refresh(c *gin.Context) {
+	sessionToken, err := c.Cookie("session_token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
 
+	userSession, exists := sessions[sessionToken]
+	if !exists {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+
+	if userSession.isExpired() {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+
+	newSessionToken := uuid.NewString()
+	expiredAt := time.Now().Add(120 * time.Second)
+
+	sessions[newSessionToken] = Session{
+		username: userSession.username,
+		expiry:   expiredAt,
+	}
+
+	delete(sessions, sessionToken)
+	c.SetCookie("session_token", newSessionToken, 120, "/", "localhost", false, false)
 }
 
 func Logout(c *gin.Context) {
