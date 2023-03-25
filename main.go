@@ -100,7 +100,13 @@ func Refresh(c *gin.Context) {
 }
 
 func Logout(c *gin.Context) {
+	sessionToken, err := c.Cookie("session_token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
 
+	delete(sessions, sessionToken)
+	c.SetCookie("session_token", "", 0, "/", "localhost", false, false)
 }
 
 func main() {
