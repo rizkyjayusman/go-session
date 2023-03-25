@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -53,7 +54,21 @@ func Signin(c *gin.Context) {
 }
 
 func Welcome(c *gin.Context) {
+	sessionToken, err := c.Cookie("session_token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	userSession, exists := sessions[sessionToken]
+	if !exists {
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
 
+	if userSession.isExpired() {
+		delete(sessions, sessionToken)
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+
+	c.Writer.Write([]byte(fmt.Sprintf("Welcome, %s!", userSession.username)))
 }
 
 func Refresh(c *gin.Context) {
@@ -70,5 +85,5 @@ func main() {
 	router.GET("/welcome", Welcome)
 	router.POST("/refresh", Refresh)
 	router.POST("/logout", Logout)
-	router.Run("localhost:8001")
+	router.Run("localhost:8000")
 }
