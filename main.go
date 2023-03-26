@@ -7,9 +7,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 const (
+	dbName     = "gosession"
+	dbUsername = "root"
+	dbPassword = "root1234"
+	dbHost     = "localhost"
+	dbPort     = 3306
+
 	sessionName       = "session_token"
 	expiryInSecond    = 120
 	isSessionSecure   = false
@@ -130,6 +138,12 @@ func Logout(c *gin.Context) {
 }
 
 func main() {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", dbUsername, dbPassword, dbHost, dbPort, dbName)
+	_, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic("the db fail to run!")
+	}
+
 	router := gin.Default()
 	router.POST("/signin", Signin)
 	router.GET("/welcome", Welcome)
