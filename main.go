@@ -2,30 +2,15 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"rizkyjayusman/go-session/util"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-)
-
-const (
-	dbName     = "gosession"
-	dbUsername = "root"
-	dbPassword = "root1234"
-	dbHost     = "localhost"
-	dbPort     = 3306
-
-	sessionName       = "session_token"
-	expiryInSecond    = 120
-	isSessionSecure   = false
-	isSessionHttpOnly = false
-
-	baseUrl  = "localhost"
-	basePath = "/"
-	port     = 8000
 )
 
 var users = map[string]string{
@@ -64,18 +49,18 @@ func Signin(c *gin.Context) {
 	}
 
 	sessionToken := uuid.NewString()
-	expiredAt := time.Now().Add(expiryInSecond * time.Second)
+	expiredAt := time.Now().Add(time.Duration(config.ExpiryInSecond) * time.Second)
 
 	sessions[sessionToken] = Session{
 		username: cred.Username,
 		expiry:   expiredAt,
 	}
 
-	c.SetCookie(sessionName, sessionToken, expiryInSecond, basePath, baseUrl, isSessionSecure, isSessionHttpOnly)
+	c.SetCookie(config.SessionName, sessionToken, config.ExpiryInSecond, config.BasePath, config.BaseUrl, config.IsSessionSecure, config.IsSessionHttpOnly)
 }
 
 func Welcome(c *gin.Context) {
-	sessionToken, err := c.Cookie(sessionName)
+	sessionToken, err := c.Cookie(config.SessionName)
 	if err != nil {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
@@ -97,7 +82,7 @@ func Welcome(c *gin.Context) {
 }
 
 func Refresh(c *gin.Context) {
-	sessionToken, err := c.Cookie(sessionName)
+	sessionToken, err := c.Cookie(config.SessionName)
 	if err != nil {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
@@ -115,7 +100,7 @@ func Refresh(c *gin.Context) {
 	}
 
 	newSessionToken := uuid.NewString()
-	expiredAt := time.Now().Add(expiryInSecond * time.Second)
+	expiredAt := time.Now().Add(time.Duration(config.ExpiryInSecond) * time.Second)
 
 	sessions[newSessionToken] = Session{
 		username: userSession.username,
@@ -123,31 +108,39 @@ func Refresh(c *gin.Context) {
 	}
 
 	delete(sessions, sessionToken)
-	c.SetCookie(sessionName, newSessionToken, expiryInSecond, basePath, baseUrl, isSessionSecure, isSessionHttpOnly)
+	c.SetCookie(config.SessionName, newSessionToken, config.ExpiryInSecond, config.BasePath, config.BaseUrl, config.IsSessionSecure, config.IsSessionHttpOnly)
 }
 
 func Logout(c *gin.Context) {
-	sessionToken, err := c.Cookie(sessionName)
+	sessionToken, err := c.Cookie(config.SessionName)
 	if err != nil {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
 	delete(sessions, sessionToken)
-	c.SetCookie(sessionName, "", 0, basePath, baseUrl, isSessionSecure, isSessionHttpOnly)
+	c.SetCookie(config.SessionName, "", 0, config.BasePath, config.BaseUrl, config.IsSessionSecure, config.IsSessionHttpOnly)
 }
 
+var config util.Config
+
 func main() {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", dbUsername, dbPassword, dbHost, dbPort, dbName)
-	_, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	config, err := util.LoadConfig(".")
+	if err != nil {
+		log.Fatal("cannot load config:", err)
+	}
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%v)/%s", config.DBUsername, config.DBPassword, config.DBHost, config.DBPort, config.DBName)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic("the db fail to run!")
 	}
+	fmt.Println(db)
 
 	router := gin.Default()
 	router.POST("/signin", Signin)
 	router.GET("/welcome", Welcome)
 	router.POST("/refresh", Refresh)
 	router.POST("/logout", Logout)
-	router.Run(fmt.Sprintf("%s:%v", baseUrl, port))
+	router.Run(fmt.Sprintf("%s:%v", config.BaseUrl, config.PORT))
 }
